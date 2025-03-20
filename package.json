@@ -1,5 +1,5 @@
 {
-	"name": "obsidian-completed-tasks",
+	"name": "mgussekloo-completedtasks",
 	"version": "1.0.0",
 	"description": "Automatically sort completed tasks to the bottom of the list.",
 	"main": "main.js",
