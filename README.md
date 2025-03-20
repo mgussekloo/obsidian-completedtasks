@@ -1,6 +1,6 @@
 # Completed Tasks
 
-A free, simple and intuitive [Obsidian](http://obsidian.md) plugin that automatically moves completed tasks (checked checkboxes) to the bottom of the list they're in.
+A free, simple and intuitive [Obsidian](http://obsidian.md) plugin that automatically moves completed tasks (checked checkboxes) to the bottom of the list they're in. Inspired by ["Moving completed tasks to the end of the list"](https://github.com/obsidian-tasks-group/obsidian-tasks/discussions/2426).
 
 ## Features
 ![Demo](https://raw.githubusercontent.com/mgussekloo/obsidian-completedtasks/master/demo.gif)
