@@ -6,6 +6,22 @@ interface CompletedTasksSettings {
 	mySetting: string;
 }
 
+interface OCTLine {
+	line: string,
+	sublines: OCTSubline[],
+	hasCursor: boolean
+}
+
+interface OCTSubline {
+	line: string,
+	hasCursor: boolean
+}
+
+interface OCTBlock {
+	lines: OCTLine[],
+	hasChecklists: boolean
+}
+
 const DEFAULT_SETTINGS: CompletedTasksSettings = {
 	mySetting: 'default'
 }
@@ -34,8 +50,11 @@ export default class CompletedTasksPlugin extends Plugin {
 
 		// reorder if user clicks a checkbox
 		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
-			if (evt.target.classList.contains("task-list-item-checkbox")) {
-				shouldReorderCheckboxes = true;
+			if (evt && evt.target) {
+				const target = evt.target as HTMLSpanElement;
+				if (target.classList.contains("task-list-item-checkbox")) {
+					shouldReorderCheckboxes = true;
+				}
 			}
 		});
 
@@ -59,7 +78,7 @@ export default class CompletedTasksPlugin extends Plugin {
 
 	}
 
-	lineSortValue(line) {
+	lineSortValue(line: string) {
 		for (const [key, value] of Object.entries(checklistLineOrdering)) {
 		  if (line.startsWith(key)) {
 			return value;
@@ -68,20 +87,17 @@ export default class CompletedTasksPlugin extends Plugin {
 		return 0;
 	}
 
-	lineHasChecklist(line) {
+	lineHasChecklist(line: string) {
 		return Object.keys(checklistLineOrdering)
 		.filter(key => line.startsWith(key))
 		.length;
 	}
 
 	reorderCheckboxes() {
-		const leaf = app.workspace.activeLeaf;
-		if (!leaf || !leaf.view || !leaf.view.editor) {
-			new Notice("🔴 Error: No active editor");
-			return;
-		}
+		const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+		if (!activeView) return;
 
-		const editor = leaf.view.editor;
+		const editor = activeView.editor as Editor;
 
 		// Store cursor position before modifications
 		const cursorAnchor = editor.getCursor("anchor");
@@ -89,17 +105,17 @@ export default class CompletedTasksPlugin extends Plugin {
 
 		const currentText = editor.getValue();
 
-		let blocks = []; // Stores different text blocks
-		let lineCollector = []; // Stores lines within a block
+		let blocks: OCTBlock[] = []; // Stores different text blocks
+		let lineCollector: OCTLine[] = []; // Stores lines within a block
 		let lastRootChecklistIndex = -1; // Index of last root checklist
 
 		const lines = currentText.split("\n");
 
 		for (let i = 0; i < lines.length; i++) {
 			const line = lines[i];
-			const prevLine = i > 0 ? lines[i - 1] : false;
-			const nextLine = i + 1 < lines.length ? lines[i + 1] : false;
-			const hasCursor = i === cursorHead.line;
+			const prevLine: any = i > 0 ? lines[i - 1] : false;
+			const nextLine: any = i + 1 < lines.length ? lines[i + 1] : false;
+			const hasCursor: boolean = i === cursorHead.line;
 
 			// Determine if the current and next lines contain checklists
 			const currentLineHasChecklist = this.lineHasChecklist(line.trim());
@@ -156,7 +172,7 @@ export default class CompletedTasksPlugin extends Plugin {
 			.flat();
 
 		let cursorIsAtLine = cursorHead.line;
-		let newLines = [];
+		let newLines: string[] = [];
 
 		// Reconstruct text while maintaining cursor position
 		sortedLines.forEach((line, index) => {
