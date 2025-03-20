@@ -25,31 +25,31 @@ export default class CompletedTasksPlugin extends Plugin {
 
 		// This adds a simple command that can be triggered anywhere
 		this.addCommand({
-			id: 'sort-completed-tasks',
-			name: 'Sort completed tasks',
+			id: 'reorder-completed-tasks',
+			name: 'Reorder completed tasks',
 			callback: () => {
-				this.sortCheckboxes();
+				this.reorderCheckboxes();
 			}
 		});
 
-		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
-		// Using this function will automatically remove the event listener when this plugin is disabled.
+		// reorder if user clicks a checkbox
 		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
 			if (evt.target.classList.contains("task-list-item-checkbox")) {
 				shouldReorderCheckboxes = true;
 			}
 		});
 
-		app.workspace.on("editor-change", (editor: Editor, view: MarkdownView) => {
+		// reorder if content in editor changes
+		this.registerEvent(this.app.workspace.on('editor-change', (editor, info) => {
 			shouldReorderCheckboxes = true;
-		})
+		}))
 
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
+		// periodically check if we need to reorder
 		this.registerInterval(window.setInterval(() => {
 			if (shouldReorderCheckboxes) {
 				shouldReorderCheckboxes = false;
 
-				this.sortCheckboxes();
+				this.reorderCheckboxes();
 			}
 
 		},  10 * 1000));
@@ -74,7 +74,7 @@ export default class CompletedTasksPlugin extends Plugin {
 		.length;
 	}
 
-	sortCheckboxes() {
+	reorderCheckboxes() {
 		const leaf = app.workspace.activeLeaf;
 		if (!leaf || !leaf.view || !leaf.view.editor) {
 		  new Notice("🔴 error: no active editor");
