@@ -62,7 +62,7 @@ export default class CompletedTasksPlugin extends Plugin {
 	lineSortValue(line) {
 		for (const [key, value] of Object.entries(checklistLineOrdering)) {
 		  if (line.startsWith(key)) {
-		  	return value;
+			return value;
 		  }
 		}
 		return 0;
@@ -77,124 +77,106 @@ export default class CompletedTasksPlugin extends Plugin {
 	reorderCheckboxes() {
 		const leaf = app.workspace.activeLeaf;
 		if (!leaf || !leaf.view || !leaf.view.editor) {
-		  new Notice("🔴 error: no active editor");
-		  return;
+			new Notice("🔴 Error: No active editor");
+			return;
 		}
 
 		const editor = leaf.view.editor;
 
+		// Store cursor position before modifications
 		const cursorAnchor = editor.getCursor("anchor");
 		const cursorHead = editor.getCursor("head");
 
 		const currentText = editor.getValue();
 
-		let blocks = [];
-		let lineCollector = [];
-		let sublineCollector = [];
+		let blocks = []; // Stores different text blocks
+		let lineCollector = []; // Stores lines within a block
+		let lastRootChecklistIndex = -1; // Index of last root checklist
 
 		const lines = currentText.split("\n");
-		let lastRootChecklistIndex = -1;
 
 		for (let i = 0; i < lines.length; i++) {
 			const line = lines[i];
-			const prevLine = (i - 1 >= 0) ? lines[i - 1] : false;
-			const nextLine = (i + 1 < lines.length) ? lines[i + 1] : false;
+			const prevLine = i > 0 ? lines[i - 1] : false;
+			const nextLine = i + 1 < lines.length ? lines[i + 1] : false;
+			const hasCursor = i === cursorHead.line;
 
-			const hasCursor = i == cursorHead.line;
+			// Determine if the current and next lines contain checklists
+			const currentLineHasChecklist = this.lineHasChecklist(line.trim());
+			const nextLineHasChecklist = nextLine ? this.lineHasChecklist(nextLine.trim()) : false;
+			const isRootChecklist = this.lineHasChecklist(line);
 
-			const currentLineHasRootOrSubChecklist = this.lineHasChecklist(line.trim());
-			const nextLineHasRootOrSubChecklist = nextLine ? this.lineHasChecklist(nextLine.trim()) : nextLine;
-			const currentLineHasRootChecklist = this.lineHasChecklist(line);
-
-			// if this line has NO root checklist, but does have a checklist somewhere,
-			// we've spotted a sub-item
-			if (!currentLineHasRootChecklist && currentLineHasRootOrSubChecklist) {
+			if (!isRootChecklist && currentLineHasChecklist) {
+				// Line is a sub-checklist item, attach it to the last root checklist
 				if (lastRootChecklistIndex >= 0) {
 					lineCollector[lastRootChecklistIndex].sublines.push({
 						line,
 						hasCursor
 					});
 				}
-			// else this is a normal line, either a root checklist or a non-checklist line
 			} else {
+				// Store root checklist or non-checklist lines
 				lineCollector.push({
 					line,
 					sublines: [],
 					hasCursor
 				});
 
-				// remember if we passed a root checklist, so we can
-				// add sublines when we encounter them later
-				if (currentLineHasRootChecklist) {
+				if (isRootChecklist) {
 					lastRootChecklistIndex = lineCollector.length - 1;
 				}
 			}
 
-			// if we encounter the end of the file,
-			// or if we encounter a "block change": either a block of (sub)checkboxes or a block of non (sub)checkboxes
-			// then we save the previous lines as a new block and start again
-			if (
-				nextLine === false
-				|| (currentLineHasRootOrSubChecklist != nextLineHasRootOrSubChecklist)
-			) {
+			// If this is the last line or we detect a change in block type, store the block
+			if (!nextLine || currentLineHasChecklist !== nextLineHasChecklist) {
 				blocks.push({
 					lines: lineCollector,
-					hasChecklists: currentLineHasRootChecklist
+					hasChecklists: lastRootChecklistIndex >= 0
 				});
 
+				// Reset for the next block
 				lineCollector = [];
 				lastRootChecklistIndex = -1;
 			}
 		}
 
-		// if there are no checklists anywhere, we bail
-		if (blocks.filter(block => block.hasChecklists).length == 0) {
-			return;
-		}
+		// If no checklists were found, exit
+		if (!blocks.some(block => block.hasChecklists)) {
+			return
+		};
 
-		// sorting the rootlines
+		// Sort checklist blocks while keeping non-checklist blocks unchanged
 		const sortedLines = blocks
-		.map(block => {
-			let lines = block.lines;
+			.map(block => {
+				if (block.hasChecklists) {
+					return block.lines.sort((a, b) => this.lineSortValue(a.line) - this.lineSortValue(b.line))
+				}
+				return block.lines;
+			})
+			.flat();
 
-			if (block.hasChecklists) {
-				lines = lines.sort((a, b) => this.lineSortValue(a.line) - this.lineSortValue(b.line));
-			}
-
-			return lines;
-		})
-		.flat();
-
-		// now make a new array of root lines and their sublines
 		let cursorIsAtLine = cursorHead.line;
 		let newLines = [];
 
+		// Reconstruct text while maintaining cursor position
 		sortedLines.forEach((line, index) => {
-			cursorIsAtLine = line.hasCursor ? index : cursorIsAtLine;
-
+			if (line.hasCursor) cursorIsAtLine = index;
 			newLines.push(line.line);
+
 			line.sublines.forEach((subline, subindex) => {
-				cursorIsAtLine = subline.hasCursor ? index + subindex : cursorIsAtLine;
-				newLines.push(subline.line)
+				if (subline.hasCursor) cursorIsAtLine = index + subindex;
+				newLines.push(subline.line);
 			});
-		})
+		});
 
 		const newText = newLines.join("\n");
 
-		// if something happened...
-		if (newText != currentText) {
+		// Update text if changes were made
+		if (newText !== currentText) {
 			editor.setValue(newText);
 			editor.setSelection({ line: cursorIsAtLine, ch: cursorHead.ch });
 		}
 	}
-
-
-
-
-
-
-
-
 
 	async loadSettings() {
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
