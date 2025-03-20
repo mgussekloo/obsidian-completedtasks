@@ -1,12 +1,23 @@
 # Completed Tasks
 
-Simple plugin to sort / move completed tasks (checked checkboxes) to the bottom of the list.
+A free, simple and intuitive [Obsidian](http://obsidian.md) plugin that automatically moves completed tasks (checked checkboxes) to the bottom of the list they're in.
 
+## Features
 ![Demo](https://raw.githubusercontent.com/mgussekloo/obsidian-completedtasks/master/demo.gif)
 
-- Tasks are reordered approx. every 10 seconds (only if the document has changed).
-- The plugin tries to keep the cursor at the same line.
-- The plugin is compatible with the popular [Tasks](https://github.com/obsidian-tasks-group/obsidian-tasks) plugin.
-- The plugin only reorders tasks at the root-level. Any subtasks move with their parent.
+- Tasks are reordered approx. every 10 seconds (if the document has changed).
+- The plugin keeps the cursor on the appropriate line during sorting.
+- The plugin is compatible with the popular [Tasks](https://github.com/obsidian-tasks-group/obsidian-tasks) plugin, but doesn't require it.
+- The plugin reorders tasks at the root-level only. Any subtasks move with their parent.
 
-Please feel free to contribute or request features.
+## Usage
+
+Install the plugin, that's it. Sorting happens automatically (every 10 seconds or so). There's a command to manually sort, but you don't need it.
+
+## Contributing
+
+Please feel free to contribute or request features. Like the plugin? Please star the Github repo.
+
+## Disclaimer
+
+This plugin isn't extensively tested. Use it at your own risk, etc.
