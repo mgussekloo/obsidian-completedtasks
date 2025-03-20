@@ -71,7 +71,7 @@ export default class CompletedTasksPlugin extends Plugin {
 				this.reorderCheckboxes();
 			}
 
-		},  5 * 1000));
+		},  10 * 1000));
 	}
 
 	onunload() {
