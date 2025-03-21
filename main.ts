@@ -8,12 +8,7 @@ interface CompletedTasksSettings {
 
 interface OCTLine {
 	line: string,
-	sublines: OCTSubline[],
-	hasCursor: boolean
-}
-
-interface OCTSubline {
-	line: string,
+	sublines: OCTLine[],
 	hasCursor: boolean
 }
 
@@ -28,8 +23,15 @@ const DEFAULT_SETTINGS: CompletedTasksSettings = {
 
 const checklistLineOrdering = {
 	'- [ ]': 0,
-	'- [x]': 1,
+	'- [/]': 1,
+	'- [x]': 2,
+	'- [-]': 3,
+	'- [>]': 3,
+	'- [<]': 3,
 }
+
+const checklistLineOrderingEntries = Object.entries(checklistLineOrdering);
+const checklistLineOrderingKeys = Object.keys(checklistLineOrdering);
 
 let shouldReorderCheckboxes = false;
 
@@ -79,18 +81,16 @@ export default class CompletedTasksPlugin extends Plugin {
 	}
 
 	lineSortValue(line: string) {
-		for (const [key, value] of Object.entries(checklistLineOrdering)) {
-		  if (line.startsWith(key)) {
-			return value;
-		  }
+		for (const [key, value] of checklistLineOrderingEntries) {
+			if (line.startsWith(key)) {
+				return value;
+			}
 		}
 		return 0;
 	}
 
 	lineHasChecklist(line: string) {
-		return Object.keys(checklistLineOrdering)
-		.filter(key => line.startsWith(key))
-		.length;
+		return checklistLineOrderingKeys.some(key => line.startsWith(key));
 	}
 
 	reorderCheckboxes() {
@@ -127,6 +127,7 @@ export default class CompletedTasksPlugin extends Plugin {
 				if (lastRootChecklistIndex >= 0) {
 					lineCollector[lastRootChecklistIndex].sublines.push({
 						line,
+						sublines: [],
 						hasCursor
 					});
 				}
@@ -160,6 +161,8 @@ export default class CompletedTasksPlugin extends Plugin {
 		if (!blocks.some(block => block.hasChecklists)) {
 			return
 		};
+
+		console.log(blocks);
 
 		// Sort checklist blocks while keeping non-checklist blocks unchanged
 		const sortedLines = blocks
