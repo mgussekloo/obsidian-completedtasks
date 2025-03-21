@@ -10,6 +10,13 @@ A free, simple and intuitive [Obsidian](http://obsidian.md) plugin that automati
 - The plugin is compatible with the popular [Tasks](https://github.com/obsidian-tasks-group/obsidian-tasks) plugin, but doesn't require it.
 - The plugin reorders tasks at the root-level only. Any subtasks move with their parent.
 
+## Manual Installation
+
+Download the latest release from the GitHub releases page
+Extract the zip file into your Obsidian vault's .obsidian/plugins/ folder
+Restart Obsidian
+Go to Settings > Community plugins and enable the plugin
+
 ## Usage
 
 Install the plugin, that's it. Sorting happens automatically (every 10 seconds or so). There's a command to manually sort, but you don't need it.
