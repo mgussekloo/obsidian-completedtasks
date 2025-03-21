@@ -12,10 +12,10 @@ A free, simple and intuitive [Obsidian](http://obsidian.md) plugin that automati
 
 ## Manual Installation
 
-Download the latest release from the GitHub releases page
-Extract the zip file into your Obsidian vault's .obsidian/plugins/ folder
-Restart Obsidian
-Go to Settings > Community plugins and enable the plugin
+- Download the latest release from the GitHub releases page
+- Extract the zip file into your Obsidian vault's .obsidian/plugins/ folder
+- Restart Obsidian
+- Go to Settings > Community plugins and enable the plugin
 
 ## Usage
 
