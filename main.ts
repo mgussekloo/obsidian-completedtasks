@@ -17,21 +17,35 @@ interface OCTBlock {
 	hasChecklists: boolean
 }
 
+interface IndexableObj { [key: string]: any; }
+
 const DEFAULT_SETTINGS: CompletedTasksSettings = {
 	mySetting: 'default'
 }
 
-const checklistLineOrdering = {
+// ---
+
+const sortValueByStatus = Object.entries({
 	'- [ ]': 0,
 	'- [/]': 1,
 	'- [x]': 2,
 	'- [-]': 3,
 	'- [>]': 3,
 	'- [<]': 3,
-}
+});
 
-const checklistLineOrderingEntries = Object.entries(checklistLineOrdering);
-const checklistLineOrderingKeys = Object.keys(checklistLineOrdering);
+const sortValueByStatusKeys = sortValueByStatus.map(entry => entry[0]);
+
+// ---
+
+const sortValueBySubstring = Object.entries({
+	'🔺': -2,
+	'⏫': -1,
+	'🔽': 1,
+	'⏬': 2
+});
+
+// ---
 
 let shouldReorderCheckboxes = false;
 
@@ -80,8 +94,8 @@ export default class CompletedTasksPlugin extends Plugin {
 
 	}
 
-	lineSortValue(line: string) {
-		for (const [key, value] of checklistLineOrderingEntries) {
+	getSortValueByStatus(line: string) {
+		for (const [key, value] of sortValueByStatus) {
 			if (line.startsWith(key)) {
 				return value;
 			}
@@ -89,8 +103,17 @@ export default class CompletedTasksPlugin extends Plugin {
 		return 0;
 	}
 
+	getSortValueBySubstring(line: string) {
+		for (const [key, value] of sortValueBySubstring) {
+			if (line.indexOf(key) >= 0) {
+				return value;
+			}
+		}
+		return 0;
+	}
+
 	lineHasChecklist(line: string) {
-		return checklistLineOrderingKeys.some(key => line.startsWith(key));
+		return sortValueByStatusKeys.some(key => line.startsWith(key));
 	}
 
 	reorderCheckboxes() {
@@ -162,13 +185,28 @@ export default class CompletedTasksPlugin extends Plugin {
 			return
 		};
 
-		console.log(blocks);
-
 		// Sort checklist blocks while keeping non-checklist blocks unchanged
 		const sortedLines = blocks
 			.map(block => {
 				if (block.hasChecklists) {
-					return block.lines.sort((a, b) => this.lineSortValue(a.line) - this.lineSortValue(b.line))
+					const linesByGroup = block.lines
+					.reduce((acc: IndexableObj, line: OCTLine) => {
+						const sortValue = this.getSortValueByStatus(line.line);
+						if (!acc[sortValue]) {
+							acc[sortValue] = [];
+						}
+						acc[sortValue].push(line);
+						return acc;
+					}, {});
+
+					const lines = Object.keys(linesByGroup)
+					.sort()
+					.reduce((acc: OCTLine[], key: string) => {
+						const sortedLines = linesByGroup[key].sort((a: OCTLine, b: OCTLine) => this.getSortValueBySubstring(a.line) - this.getSortValueBySubstring(b.line))
+						return acc.concat(sortedLines);
+					}, []);
+
+					return lines;
 				}
 				return block.lines;
 			})
@@ -205,8 +243,6 @@ export default class CompletedTasksPlugin extends Plugin {
 		await this.saveData(this.settings);
 	}
 }
-
-
 
 class CompletedTasksSettingsTab extends PluginSettingTab {
 	plugin: CompletedTasksPlugin;
