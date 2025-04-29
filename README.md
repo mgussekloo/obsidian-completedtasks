@@ -14,16 +14,12 @@ A free, simple and intuitive [Obsidian](http://obsidian.md) plugin that automati
 
 Install the plugin, that's it. Sorting happens automatically (every 10 seconds or so). There's a command to manually sort, but you don't need it.
 
-## Manual Installation
+## Installation
 
-- Download the latest release from the GitHub releases page
-- Extract the zip file into your Obsidian vault's .obsidian/plugins/ folder
-- Restart Obsidian
-- Go to Settings > Community plugins and enable the plugin
+[Get the plugin](https://obsidian.md/plugins?id=completed-tasks) from Community Plugins and install.
 
 ## Todo
 
-- Add sub-ordering (for priority, maybe tags or dates?)
 - Add configuration options
 - Add feature that keeps a max number of completed tasks per list
 
