@@ -19,6 +19,8 @@ interface OCTBlock {
 
 interface IndexableObj { [key: string]: any; }
 
+// ---
+
 const DEFAULT_SETTINGS: CompletedTasksSettings = {
 	mySetting: 'default'
 }
@@ -54,6 +56,7 @@ export default class CompletedTasksPlugin extends Plugin {
 
 	async onload() {
 		await this.loadSettings();
+		this.addSettingTab(new CompletedTasksSettingsTab(this.app, this));
 
 		// This adds a simple command that can be triggered anywhere
 		this.addCommand({
@@ -64,30 +67,35 @@ export default class CompletedTasksPlugin extends Plugin {
 			}
 		});
 
-		// reorder if user clicks a checkbox
-		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
-			if (evt && evt.target) {
-				const target = evt.target as HTMLSpanElement;
-				if (target.classList.contains("task-list-item-checkbox")) {
-					shouldReorderCheckboxes = true;
-				}
-			}
-		});
+		// // reorder if user clicks a checkbox
+		// this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
+		// 	if (evt && evt.target) {
+		// 		const target = evt.target as HTMLSpanElement;
+		// 		if (target.classList.contains("task-list-item-checkbox")) {
+		// 			shouldReorderCheckboxes = true;
+		// 		}
+		// 	}
+		// });
 
 		// reorder if content in editor changes
-		this.registerEvent(this.app.workspace.on('editor-change', (editor, info) => {
+		this.registerEvent(this.app.vault.on('modify', (file) => {
 			shouldReorderCheckboxes = true;
 		}))
+
+		// reorder if we render markdown
+		this.registerMarkdownPostProcessor((element, context) => {
+			shouldReorderCheckboxes = true;
+		});
 
 		// periodically check if we need to reorder
 		this.registerInterval(window.setInterval(() => {
 			if (shouldReorderCheckboxes) {
+				console.log('reordered');
 				shouldReorderCheckboxes = false;
-
 				this.reorderCheckboxes();
 			}
 
-		},  10 * 1000));
+		}, 5 * 1000));
 	}
 
 	onunload() {
@@ -187,30 +195,30 @@ export default class CompletedTasksPlugin extends Plugin {
 
 		// Sort checklist blocks while keeping non-checklist blocks unchanged
 		const sortedLines = blocks
-			.map(block => {
-				if (block.hasChecklists) {
-					const linesByGroup = block.lines
-					.reduce((acc: IndexableObj, line: OCTLine) => {
-						const sortValue = this.getSortValueByStatus(line.line);
-						if (!acc[sortValue]) {
-							acc[sortValue] = [];
-						}
-						acc[sortValue].push(line);
-						return acc;
-					}, {});
+		.map(block => {
+			if (block.hasChecklists) {
+				const linesByGroup = block.lines
+				.reduce((acc: IndexableObj, line: OCTLine) => {
+					const sortValue = this.getSortValueByStatus(line.line);
+					if (!acc[sortValue]) {
+						acc[sortValue] = [];
+					}
+					acc[sortValue].push(line);
+					return acc;
+				}, {});
 
-					const lines = Object.keys(linesByGroup)
-					.sort()
-					.reduce((acc: OCTLine[], key: string) => {
-						const sortedLines = linesByGroup[key].sort((a: OCTLine, b: OCTLine) => this.getSortValueBySubstring(a.line) - this.getSortValueBySubstring(b.line))
-						return acc.concat(sortedLines);
-					}, []);
+				const lines = Object.keys(linesByGroup)
+				.sort()
+				.reduce((acc: OCTLine[], key: string) => {
+					const sortedLines = linesByGroup[key].sort((a: OCTLine, b: OCTLine) => this.getSortValueBySubstring(a.line) - this.getSortValueBySubstring(b.line))
+					return acc.concat(sortedLines);
+				}, []);
 
-					return lines;
-				}
-				return block.lines;
-			})
-			.flat();
+				return lines;
+			}
+			return block.lines;
+		})
+		.flat();
 
 		let cursorIsAtLine = cursorHead.line;
 		let newLines: string[] = [];
@@ -258,14 +266,14 @@ class CompletedTasksSettingsTab extends PluginSettingTab {
 		containerEl.empty();
 
 		new Setting(containerEl)
-			.setName('Setting #1')
-			.setDesc('It\'s a secret')
-			.addText(text => text
-				.setPlaceholder('Enter your secret')
-				.setValue(this.plugin.settings.mySetting)
-				.onChange(async (value) => {
-					this.plugin.settings.mySetting = value;
-					await this.plugin.saveSettings();
-				}));
+		.setName('Setting #1')
+		.setDesc('It\'s a secret')
+		.addText(text => text
+			.setPlaceholder('Enter your secret')
+			.setValue(this.plugin.settings.mySetting)
+			.onChange(async (value) => {
+				this.plugin.settings.mySetting = value;
+				await this.plugin.saveSettings();
+			}));
 	}
 }
