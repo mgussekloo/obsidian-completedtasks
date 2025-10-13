@@ -9,7 +9,9 @@ interface CompletedTasksSettings {
 interface OCTLine {
 	line: string,
 	sublines: OCTLine[],
-	hasCursor: boolean
+	hasCursor: boolean,
+	statusSortval: 0,
+	subSortval: 0,
 }
 
 interface OCTBlock {
@@ -19,31 +21,28 @@ interface OCTBlock {
 
 interface IndexableObj { [key: string]: any; }
 
+// ---
+
 const DEFAULT_SETTINGS: CompletedTasksSettings = {
-	mySetting: 'default'
+	ignoreSubstrings: [
+		'#donotsort'
+	],
+	sortedStatuses: [
+		'- [ ]',
+		'- [/]',
+		'- [x]',
+		'- [-]',
+		'- [>]',
+		'- [<]',
+	],
+	sortedSubstrings: [
+		'🔺',
+		'⏫',
+		'🔽',
+		'⏬',
+	],
+	intervalSeconds: 5
 }
-
-// ---
-
-const sortValueByStatus = Object.entries({
-	'- [ ]': 0,
-	'- [/]': 1,
-	'- [x]': 2,
-	'- [-]': 3,
-	'- [>]': 3,
-	'- [<]': 3,
-});
-
-const sortValueByStatusKeys = sortValueByStatus.map(entry => entry[0]);
-
-// ---
-
-const sortValueBySubstring = Object.entries({
-	'🔺': -2,
-	'⏫': -1,
-	'🔽': 1,
-	'⏬': 2
-});
 
 // ---
 
@@ -54,6 +53,7 @@ export default class CompletedTasksPlugin extends Plugin {
 
 	async onload() {
 		await this.loadSettings();
+		this.addSettingTab(new CompletedTasksSettingsTab(this.app, this));
 
 		// This adds a simple command that can be triggered anywhere
 		this.addCommand({
@@ -64,56 +64,69 @@ export default class CompletedTasksPlugin extends Plugin {
 			}
 		});
 
-		// reorder if user clicks a checkbox
-		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
-			if (evt && evt.target) {
-				const target = evt.target as HTMLSpanElement;
-				if (target.classList.contains("task-list-item-checkbox")) {
-					shouldReorderCheckboxes = true;
-				}
-			}
-		});
-
 		// reorder if content in editor changes
-		this.registerEvent(this.app.workspace.on('editor-change', (editor, info) => {
+		this.registerEvent(this.app.vault.on('modify', (file) => {
+
 			shouldReorderCheckboxes = true;
 		}))
+
+		// // reorder if we render markdown
+		// this.registerMarkdownPostProcessor((element, context) => {
+
+		// 	shouldReorderCheckboxes = true;
+		// });
 
 		// periodically check if we need to reorder
 		this.registerInterval(window.setInterval(() => {
 			if (shouldReorderCheckboxes) {
+
 				shouldReorderCheckboxes = false;
 
-				this.reorderCheckboxes();
-			}
+				const view = app.workspace.activeLeaf.getViewState()
 
-		},  10 * 1000));
+
+				if (view.state.mode == 'preview') {
+					app.workspace.activeLeaf.setViewState({
+						...view,
+						state: {
+							mode: 'source',
+							source: false
+						}
+					})
+				}
+
+				this.reorderCheckboxes();
+
+				if (view.state.mode == 'preview') {
+					window.setTimeout(() => {
+						app.workspace.activeLeaf.setViewState(view)
+					}, 10);
+				}
+			}
+		}, this.settings.intervalSeconds * 1000));
+
 	}
 
 	onunload() {
 
 	}
 
-	getSortValueByStatus(line: string) {
-		for (const [key, value] of sortValueByStatus) {
-			if (line.startsWith(key)) {
-				return value;
-			}
-		}
-		return 0;
-	}
+	findSortval(line: string, arr: array, _anywhere: boolean = false) {
+		for (const [key, value] of arr.entries()) {
 
-	getSortValueBySubstring(line: string) {
-		for (const [key, value] of sortValueBySubstring) {
-			if (line.indexOf(key) >= 0) {
-				return value;
+			if (_anywhere && line.indexOf(value) >= 0) {
+				return key;
+			}
+
+			if (line.startsWith(value)) {
+				return key;
 			}
 		}
 		return 0;
 	}
 
 	lineHasChecklist(line: string) {
-		return sortValueByStatusKeys.some(key => line.startsWith(key));
+		return this.settings.sortedStatuses.some(value => line.startsWith(value));
 	}
 
 	reorderCheckboxes() {
@@ -125,12 +138,15 @@ export default class CompletedTasksPlugin extends Plugin {
 		// Store cursor position before modifications
 		const cursorAnchor = editor.getCursor("anchor");
 		const cursorHead = editor.getCursor("head");
-
 		const currentText = editor.getValue();
 
+		// prepare vars
 		let blocks: OCTBlock[] = []; // Stores different text blocks
 		let lineCollector: OCTLine[] = []; // Stores lines within a block
 		let lastRootChecklistIndex = -1; // Index of last root checklist
+
+		let ignoreBlock = false;
+		let ignoreNextBlock = false;
 
 		const lines = currentText.split("\n");
 
@@ -139,6 +155,10 @@ export default class CompletedTasksPlugin extends Plugin {
 			const prevLine: any = i > 0 ? lines[i - 1] : false;
 			const nextLine: any = i + 1 < lines.length ? lines[i + 1] : false;
 			const hasCursor: boolean = i === cursorHead.line;
+
+			if (!ignoreNextBlock && this.settings.ignoreSubstrings.some(key => line.indexOf(key) >= 0)) {
+				ignoreNextBlock = true;
+			}
 
 			// Determine if the current and next lines contain checklists
 			const currentLineHasChecklist = this.lineHasChecklist(line.trim());
@@ -169,9 +189,17 @@ export default class CompletedTasksPlugin extends Plugin {
 
 			// If this is the last line or we detect a change in block type, store the block
 			if (!nextLine || currentLineHasChecklist !== nextLineHasChecklist) {
+				let hasChecklists = lastRootChecklistIndex >= 0;
+
+				if (hasChecklists) {
+					ignoreBlock = ignoreNextBlock
+					ignoreNextBlock = false;
+				}
+
 				blocks.push({
 					lines: lineCollector,
-					hasChecklists: lastRootChecklistIndex >= 0
+					hasChecklists,
+					ignoreBlock
 				});
 
 				// Reset for the next block
@@ -187,30 +215,28 @@ export default class CompletedTasksPlugin extends Plugin {
 
 		// Sort checklist blocks while keeping non-checklist blocks unchanged
 		const sortedLines = blocks
-			.map(block => {
-				if (block.hasChecklists) {
-					const linesByGroup = block.lines
-					.reduce((acc: IndexableObj, line: OCTLine) => {
-						const sortValue = this.getSortValueByStatus(line.line);
-						if (!acc[sortValue]) {
-							acc[sortValue] = [];
-						}
-						acc[sortValue].push(line);
-						return acc;
-					}, {});
-
-					const lines = Object.keys(linesByGroup)
-					.sort()
-					.reduce((acc: OCTLine[], key: string) => {
-						const sortedLines = linesByGroup[key].sort((a: OCTLine, b: OCTLine) => this.getSortValueBySubstring(a.line) - this.getSortValueBySubstring(b.line))
-						return acc.concat(sortedLines);
-					}, []);
-
-					return lines;
-				}
+		.map(block => {
+			if (block.ignoreBlock || !block.hasChecklists) {
 				return block.lines;
+			}
+
+			return block.lines
+			.map((line: OCTLine) => {
+				line.statusSortval = this.findSortval(line.line, this.settings.sortedStatuses);
+				line.subSortval = this.findSortval(line.line, this.settings.sortedStatuses, true);
+				return line;
 			})
-			.flat();
+			.sort((a: OCTLine, b: OCTLine) => {
+				if (a.statusSortval != b.statusSortval) {
+					return a.statusSortval > b.statusSortval ? 1 : -1;
+				}
+				if (a.subSortval != b.subSortval) {
+					return a.subSortval > b.subSortval ? 1 : -1;
+				}
+				return 0;
+			})
+		})
+		.flat();
 
 		let cursorIsAtLine = cursorHead.line;
 		let newLines: string[] = [];
@@ -253,18 +279,47 @@ class CompletedTasksSettingsTab extends PluginSettingTab {
 	}
 
 	display(): void {
-		const {containerEl} = this;
+		const { containerEl } = this;
 
 		containerEl.empty();
 
 		new Setting(containerEl)
-			.setName('Setting #1')
-			.setDesc('It\'s a secret')
-			.addText(text => text
-				.setPlaceholder('Enter your secret')
-				.setValue(this.plugin.settings.mySetting)
+		.setName('Sorting')
+		.setDesc('Comma separated. Task statuses, from high to low.')
+		.addTextArea(text => text
+			.setValue(this.plugin.settings.sortedStatuses.join(','))
+			.onChange(async (value) => {
+				this.plugin.settings.sortedStatuses = value.split(',').map(item => item && item.trim());
+				await this.plugin.saveSettings();
+			}));
+
+		new Setting(containerEl)
+			.setName('Subsorting')
+			.setDesc('Comma separated. Strings for sub-sorting, from high to low.')
+			.addTextArea(text => text
+				.setValue(this.plugin.settings.sortedSubstrings.join(','))
 				.onChange(async (value) => {
-					this.plugin.settings.mySetting = value;
+					this.plugin.settings.sortedSubstrings = value.split(',').map(item => item && item.trim());
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName('Blacklist words')
+			.setDesc('Comma separated. Add any of these above a list to have this plugin ignore it.')
+			.addTextArea(text => text
+				.setValue(this.plugin.settings.ignoreSubstrings.join(','))
+				.onChange(async (value) => {
+					this.plugin.settings.ignoreSubstrings = value.split(',').map(item => item && item.trim());
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName('Interval')
+			.setDesc('Interval at which the plugin runs, in seconds.')
+			.addText(text => text
+				.setValue('' + this.plugin.settings.intervalSeconds)
+				.onChange(async (value) => {
+					this.plugin.settings.intervalSeconds = Math.max(0, Math.min(999, parseInt(value) ));
 					await this.plugin.saveSettings();
 				}));
 	}
