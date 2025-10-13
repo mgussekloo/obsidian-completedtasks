@@ -1,7 +1,7 @@
 {
 	"id": "completed-tasks",
 	"name": "Completed Tasks",
-	"version": "1.0.0",
+	"version": "1.1.0",
 	"minAppVersion": "0.15.0",
 	"description": "Automatically sort completed tasks to the bottom of the list.",
 	"author": "Mgussekloo",
