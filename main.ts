@@ -131,9 +131,7 @@ export default class CompletedTasksPlugin extends Plugin {
 
 	reorderCheckboxes() {
 		const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
-
 		if (!activeView) return;
-
 
 		const editor = activeView.editor as Editor;
 
@@ -146,7 +144,9 @@ export default class CompletedTasksPlugin extends Plugin {
 		let blocks: OCTBlock[] = []; // Stores different text blocks
 		let lineCollector: OCTLine[] = []; // Stores lines within a block
 		let lastRootChecklistIndex = -1; // Index of last root checklist
+
 		let ignoreBlock = false;
+		let ignoreNextBlock = false;
 
 		const lines = currentText.split("\n");
 
@@ -156,8 +156,8 @@ export default class CompletedTasksPlugin extends Plugin {
 			const nextLine: any = i + 1 < lines.length ? lines[i + 1] : false;
 			const hasCursor: boolean = i === cursorHead.line;
 
-			if (!ignoreBlock && this.settings.ignoreSubstrings.some(key => line.indexOf(key) >= 0)) {
-				ignoreBlock = true;
+			if (!ignoreNextBlock && this.settings.ignoreSubstrings.some(key => line.indexOf(key) >= 0)) {
+				ignoreNextBlock = true;
 			}
 
 			// Determine if the current and next lines contain checklists
@@ -189,16 +189,22 @@ export default class CompletedTasksPlugin extends Plugin {
 
 			// If this is the last line or we detect a change in block type, store the block
 			if (!nextLine || currentLineHasChecklist !== nextLineHasChecklist) {
+				let hasChecklists = lastRootChecklistIndex >= 0;
+
+				if (hasChecklists) {
+					ignoreBlock = ignoreNextBlock
+					ignoreNextBlock = false;
+				}
+
 				blocks.push({
 					lines: lineCollector,
-					hasChecklists: lastRootChecklistIndex >= 0,
+					hasChecklists,
 					ignoreBlock
 				});
 
 				// Reset for the next block
 				lineCollector = [];
 				lastRootChecklistIndex = -1;
-				ignoreBlock = false;
 			}
 		}
 
