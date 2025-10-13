@@ -3,20 +3,24 @@ import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Set
 // Remember to rename these classes and interfaces!
 
 interface CompletedTasksSettings {
-	mySetting: string;
+	ignoreSubstrings: string[],
+	sortedStatuses: string[],
+	sortedSubstrings: string[],
+	intervalSeconds: number,
 }
 
 interface OCTLine {
 	line: string,
 	sublines: OCTLine[],
 	hasCursor: boolean,
-	statusSortval: 0,
-	subSortval: 0,
+	statusSortval: number,
+	subSortval: number,
 }
 
 interface OCTBlock {
 	lines: OCTLine[],
-	hasChecklists: boolean
+	hasChecklists: boolean,
+	ignoreBlock: boolean
 }
 
 interface IndexableObj { [key: string]: any; }
@@ -66,41 +70,35 @@ export default class CompletedTasksPlugin extends Plugin {
 
 		// reorder if content in editor changes
 		this.registerEvent(this.app.vault.on('modify', (file) => {
-
 			shouldReorderCheckboxes = true;
 		}))
-
-		// // reorder if we render markdown
-		// this.registerMarkdownPostProcessor((element, context) => {
-
-		// 	shouldReorderCheckboxes = true;
-		// });
 
 		// periodically check if we need to reorder
 		this.registerInterval(window.setInterval(() => {
 			if (shouldReorderCheckboxes) {
-
 				shouldReorderCheckboxes = false;
 
-				const view = app.workspace.activeLeaf.getViewState()
+				const activeLeaf = this.app.workspace.activeLeaf;
+				if (activeLeaf) {
+					const view = activeLeaf.getViewState()
 
+					if (view && view.state && view.state.mode == 'preview') {
+						activeLeaf.setViewState({
+							...view,
+							state: {
+								mode: 'source',
+								source: false
+							}
+						})
+					}
 
-				if (view.state.mode == 'preview') {
-					app.workspace.activeLeaf.setViewState({
-						...view,
-						state: {
-							mode: 'source',
-							source: false
-						}
-					})
-				}
+					this.reorderCheckboxes();
 
-				this.reorderCheckboxes();
-
-				if (view.state.mode == 'preview') {
-					window.setTimeout(() => {
-						app.workspace.activeLeaf.setViewState(view)
-					}, 10);
+					if (view && view.state && view.state.mode == 'preview') {
+						window.setTimeout(() => {
+							activeLeaf.setViewState(view)
+						}, 10);
+					}
 				}
 			}
 		}, this.settings.intervalSeconds * 1000));
@@ -111,7 +109,7 @@ export default class CompletedTasksPlugin extends Plugin {
 
 	}
 
-	findSortval(line: string, arr: array, _anywhere: boolean = false) {
+	findSortval(line: string, arr: string[], _anywhere: boolean = false) {
 		for (const [key, value] of arr.entries()) {
 
 			if (_anywhere && line.indexOf(value) >= 0) {
@@ -171,7 +169,9 @@ export default class CompletedTasksPlugin extends Plugin {
 					lineCollector[lastRootChecklistIndex].sublines.push({
 						line,
 						sublines: [],
-						hasCursor
+						hasCursor,
+						statusSortval: 0,
+						subSortval: 0
 					});
 				}
 			} else {
@@ -179,7 +179,10 @@ export default class CompletedTasksPlugin extends Plugin {
 				lineCollector.push({
 					line,
 					sublines: [],
-					hasCursor
+					hasCursor,
+					statusSortval: 0,
+					subSortval: 0
+
 				});
 
 				if (isRootChecklist) {
