@@ -4,6 +4,7 @@ import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Set
 
 interface CompletedTasksSettings {
 	ignoreSubstrings: string[],
+	statuses: string[],
 	sortedStatuses: string[],
 	sortedSubstrings: string[],
 	intervalSeconds: number,
@@ -31,13 +32,17 @@ const DEFAULT_SETTINGS: CompletedTasksSettings = {
 	ignoreSubstrings: [
 		'#donotsort'
 	],
-	sortedStatuses: [
-		'- [/]',
+	statuses: [
 		'- [ ]',
+		'- [/]',
 		'- [x]',
 		'- [-]',
 		'- [>]',
 		'- [<]',
+	],
+	sortedStatuses: [
+		'- [x]',
+		'- [-]',
 	],
 	sortedSubstrings: [
 		'🔺',
@@ -113,18 +118,19 @@ export default class CompletedTasksPlugin extends Plugin {
 		for (const [key, value] of arr.entries()) {
 
 			if (_anywhere && line.indexOf(value) >= 0) {
-				return key;
+				console.log('found keyword', line, value);
+				return key + 1;
 			}
 
 			if (line.startsWith(value)) {
-				return key;
+				return key + 1;
 			}
 		}
 		return 0;
 	}
 
 	lineHasChecklist(line: string) {
-		return this.settings.sortedStatuses.some(value => line.startsWith(value));
+		return this.settings.statuses.some(value => line.startsWith(value));
 	}
 
 	reorderCheckboxes() {
@@ -215,6 +221,7 @@ export default class CompletedTasksPlugin extends Plugin {
 		if (!blocks.some(block => block.hasChecklists)) {
 			return
 		};
+console.log('blo', blocks);
 
 		// Sort checklist blocks while keeping non-checklist blocks unchanged
 		const sortedLines = blocks
@@ -226,7 +233,7 @@ export default class CompletedTasksPlugin extends Plugin {
 			return block.lines
 			.map((line: OCTLine) => {
 				line.statusSortval = this.findSortval(line.line, this.settings.sortedStatuses);
-				line.subSortval = this.findSortval(line.line, this.settings.sortedStatuses, true);
+				line.subSortval = this.settings.sortedSubstrings.length - this.findSortval(line.line, this.settings.sortedSubstrings, true);
 				return line;
 			})
 			.sort((a: OCTLine, b: OCTLine) => {
@@ -286,9 +293,19 @@ class CompletedTasksSettingsTab extends PluginSettingTab {
 
 		containerEl.empty();
 
+	new Setting(containerEl)
+		.setName('Statuses')
+		.setDesc('Comma separated. Lines beginning with any of these are recognized as todo\'s.')
+		.addTextArea(text => text
+			.setValue(this.plugin.settings.statuses.join(','))
+			.onChange(async (value) => {
+				this.plugin.settings.statuses = value.split(',').map(item => item && item.trim());
+				await this.plugin.saveSettings();
+			}));
+
 		new Setting(containerEl)
 		.setName('Sorting')
-		.setDesc('Comma separated. Task statuses, from high to low.')
+		.setDesc('Comma separated. Sort order for statuses, from high to low.')
 		.addTextArea(text => text
 			.setValue(this.plugin.settings.sortedStatuses.join(','))
 			.onChange(async (value) => {
