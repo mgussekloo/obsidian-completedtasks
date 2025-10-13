@@ -28,8 +28,8 @@ const DEFAULT_SETTINGS: CompletedTasksSettings = {
 		'#donotsort'
 	],
 	sortedStatuses: [
-		'- [ ]',
 		'- [/]',
+		'- [ ]',
 		'- [x]',
 		'- [-]',
 		'- [>]',

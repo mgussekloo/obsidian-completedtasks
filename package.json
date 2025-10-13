@@ -1,6 +1,6 @@
 {
 	"name": "mgussekloo-completedtasks",
-	"version": "1.0.0",
+	"version": "1.1.0",
 	"description": "Automatically sort completed tasks to the bottom of the list.",
 	"main": "main.js",
 	"scripts": {
