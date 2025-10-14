@@ -118,7 +118,6 @@ export default class CompletedTasksPlugin extends Plugin {
 		for (const [key, value] of arr.entries()) {
 
 			if (_anywhere && line.indexOf(value) >= 0) {
-				console.log('found keyword', line, value);
 				return key + 1;
 			}
 
@@ -221,7 +220,6 @@ export default class CompletedTasksPlugin extends Plugin {
 		if (!blocks.some(block => block.hasChecklists)) {
 			return
 		};
-console.log('blo', blocks);
 
 		// Sort checklist blocks while keeping non-checklist blocks unchanged
 		const sortedLines = blocks
