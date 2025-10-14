@@ -5,14 +5,15 @@ A free, simple and intuitive [Obsidian](http://obsidian.md) plugin that automati
 ## Features
 ![Demo](https://raw.githubusercontent.com/mgussekloo/obsidian-completedtasks/master/demo.gif)
 
-- Tasks are reordered approx. every 10 seconds (if the document has changed).
-- The plugin keeps the cursor on the appropriate line during sorting.
-- The plugin is compatible with the popular [Tasks](https://github.com/obsidian-tasks-group/obsidian-tasks) plugin, but doesn't require it.
-- The plugin reorders tasks at the root-level only. Any subtasks move with their parent.
+- Tasks are reordered every ... seconds, only if the document has changed (the interval is configurable).
+- Keeps the cursor on the appropriate line during sorting.
+- Compatible with the popular [Tasks](https://github.com/obsidian-tasks-group/obsidian-tasks) plugin but doesn't require it.
+- Reorders tasks at the root-level, while subtasks move with their parent.
+- Works in Reader mode.
 
 ## Usage
 
-Install the plugin, that's it. Sorting happens automatically (every 10 seconds or so). There's a command to manually sort, but you don't need it.
+Install the plugin, that's it. Sorting happens automatically (every 10 seconds or so). There's a command to manually sort.
 
 ## Installation
 
@@ -20,7 +21,7 @@ Install the plugin, that's it. Sorting happens automatically (every 10 seconds o
 
 ## Todo
 
-- Add configuration options
+- ~Add configuration options~
 - Add feature that keeps a max number of completed tasks per list
 
 ## Contributing
