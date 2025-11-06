@@ -1,4 +1,4 @@
-import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting, WorkspaceLeaf } from 'obsidian';
 
 // Remember to rename these classes and interfaces!
 
@@ -8,6 +8,7 @@ interface CompletedTasksSettings {
 	sortedStatuses: string[],
 	sortedSubstrings: string[],
 	intervalSeconds: number,
+	reorderOnTabChange: boolean,
 }
 
 interface OCTLine {
@@ -50,7 +51,8 @@ const DEFAULT_SETTINGS: CompletedTasksSettings = {
 		'🔽',
 		'⏬',
 	],
-	intervalSeconds: 5
+	intervalSeconds: 5,
+	reorderOnTabChange: false,
 }
 
 // ---
@@ -59,17 +61,24 @@ let shouldReorderCheckboxes = false;
 
 export default class CompletedTasksPlugin extends Plugin {
 	settings: CompletedTasksSettings;
+	private lastActiveLeaf: WorkspaceLeaf | null = null;
 
 	async onload() {
 		await this.loadSettings();
 		this.addSettingTab(new CompletedTasksSettingsTab(this.app, this));
+		this.lastActiveLeaf = this.app.workspace.activeLeaf ?? null;
 
 		// This adds a simple command that can be triggered anywhere
 		this.addCommand({
 			id: 'reorder-completed-tasks',
 			name: 'Reorder completed tasks',
 			callback: () => {
-				this.reorderCheckboxes();
+				const activeLeaf = this.app.workspace.activeLeaf;
+				if (activeLeaf) {
+					this.reorderLeaf(activeLeaf);
+				} else {
+					this.reorderCheckboxes();
+				}
 			}
 		});
 
@@ -78,6 +87,23 @@ export default class CompletedTasksPlugin extends Plugin {
 			shouldReorderCheckboxes = true;
 		}))
 
+		this.registerEvent(this.app.workspace.on('active-leaf-change', (leaf) => {
+			const previousLeaf = this.lastActiveLeaf;
+			this.lastActiveLeaf = leaf ?? null;
+
+			if (!this.settings.reorderOnTabChange) {
+				return;
+			}
+
+			if (!shouldReorderCheckboxes) {
+				return;
+			}
+
+			if (previousLeaf) {
+				this.reorderLeaf(previousLeaf);
+			}
+		}));
+
 		// periodically check if we need to reorder
 		this.registerInterval(window.setInterval(() => {
 			if (shouldReorderCheckboxes) {
@@ -85,25 +111,7 @@ export default class CompletedTasksPlugin extends Plugin {
 
 				const activeLeaf = this.app.workspace.activeLeaf;
 				if (activeLeaf) {
-					const view = activeLeaf.getViewState()
-
-					if (view && view.state && view.state.mode == 'preview') {
-						activeLeaf.setViewState({
-							...view,
-							state: {
-								mode: 'source',
-								source: false
-							}
-						})
-					}
-
-					this.reorderCheckboxes();
-
-					if (view && view.state && view.state.mode == 'preview') {
-						window.setTimeout(() => {
-							activeLeaf.setViewState(view)
-						}, 10);
-					}
+					this.reorderLeaf(activeLeaf);
 				}
 			}
 		}, this.settings.intervalSeconds * 1000));
@@ -132,11 +140,44 @@ export default class CompletedTasksPlugin extends Plugin {
 		return this.settings.statuses.some(value => line.startsWith(value));
 	}
 
+	private reorderLeaf(leaf: WorkspaceLeaf) {
+		const view = leaf.view;
+		if (!(view instanceof MarkdownView)) {
+			return;
+		}
+
+		const viewState = leaf.getViewState()
+
+		if (viewState && viewState.state && viewState.state.mode == 'preview') {
+			leaf.setViewState({
+				...viewState,
+				state: {
+					mode: 'source',
+					source: false
+				}
+			})
+		}
+
+		this.reorderView(view);
+
+		if (viewState && viewState.state && viewState.state.mode == 'preview') {
+			window.setTimeout(() => {
+				leaf.setViewState(viewState)
+			}, 10);
+		}
+	}
+
 	reorderCheckboxes() {
 		const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
 		if (!activeView) return;
 
-		const editor = activeView.editor as Editor;
+		this.reorderView(activeView);
+	}
+
+	private reorderView(view: MarkdownView) {
+		shouldReorderCheckboxes = false;
+
+		const editor = view.editor as Editor;
 
 		// Store cursor position before modifications
 		const cursorAnchor = editor.getCursor("anchor");
@@ -338,6 +379,16 @@ class CompletedTasksSettingsTab extends PluginSettingTab {
 				.setValue('' + this.plugin.settings.intervalSeconds)
 				.onChange(async (value) => {
 					this.plugin.settings.intervalSeconds = Math.max(0, Math.min(999, parseInt(value) ));
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName('Reorder on tab change')
+			.setDesc('Reorder the active note when switching tabs or focus.')
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.reorderOnTabChange)
+				.onChange(async (value) => {
+					this.plugin.settings.reorderOnTabChange = value;
 					await this.plugin.saveSettings();
 				}));
 	}
