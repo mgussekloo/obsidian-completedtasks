@@ -56,6 +56,7 @@ const DEFAULT_SETTINGS: CompletedTasksSettings = {
 // ---
 
 let shouldReorderCheckboxes = false;
+let reorderIntervalId: number | null = null;
 
 export default class CompletedTasksPlugin extends Plugin {
 	settings: CompletedTasksSettings;
@@ -69,7 +70,8 @@ export default class CompletedTasksPlugin extends Plugin {
 			id: 'reorder-completed-tasks',
 			name: 'Reorder completed tasks',
 			callback: () => {
-				this.reorderCheckboxes();
+				shouldReorderCheckboxes = false;
+				this.performReorder();
 			}
 		});
 
@@ -79,39 +81,61 @@ export default class CompletedTasksPlugin extends Plugin {
 		}))
 
 		// periodically check if we need to reorder
-		this.registerInterval(window.setInterval(() => {
-			if (shouldReorderCheckboxes) {
-				shouldReorderCheckboxes = false;
-
-				const activeLeaf = this.app.workspace.activeLeaf;
-				if (activeLeaf) {
-					const view = activeLeaf.getViewState()
-
-					if (view && view.state && view.state.mode == 'preview') {
-						activeLeaf.setViewState({
-							...view,
-							state: {
-								mode: 'source',
-								source: false
-							}
-						})
-					}
-
-					this.reorderCheckboxes();
-
-					if (view && view.state && view.state.mode == 'preview') {
-						window.setTimeout(() => {
-							activeLeaf.setViewState(view)
-						}, 10);
-					}
-				}
-			}
-		}, this.settings.intervalSeconds * 1000));
+		this.scheduleReorderInterval();
 
 	}
 
 	onunload() {
 
+	}
+
+	scheduleReorderInterval() {
+		if (reorderIntervalId !== null) {
+			window.clearInterval(reorderIntervalId);
+			reorderIntervalId = null;
+		}
+
+		if (this.settings.intervalSeconds <= 0) {
+			return;
+		}
+
+		const intervalId = window.setInterval(() => {
+			if (shouldReorderCheckboxes) {
+				shouldReorderCheckboxes = false;
+				this.performReorder();
+			}
+		}, this.settings.intervalSeconds * 1000);
+
+		reorderIntervalId = intervalId;
+		this.registerInterval(intervalId);
+	}
+
+	private performReorder() {
+		const activeLeaf = this.app.workspace.activeLeaf;
+		if (activeLeaf) {
+			const view = activeLeaf.getViewState();
+
+			if (view && view.state && view.state.mode == 'preview') {
+				activeLeaf.setViewState({
+					...view,
+					state: {
+						mode: 'source',
+						source: false
+					}
+				});
+			}
+
+			this.reorderCheckboxes();
+
+			if (view && view.state && view.state.mode == 'preview') {
+				window.setTimeout(() => {
+					activeLeaf.setViewState(view);
+				}, 10);
+			}
+			return;
+		}
+
+		this.reorderCheckboxes();
 	}
 
 	findSortval(line: string, arr: string[], _anywhere: boolean = false) {
@@ -333,12 +357,14 @@ class CompletedTasksSettingsTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Interval')
-			.setDesc('Interval at which the plugin runs, in seconds.')
+			.setDesc('Interval at which the plugin runs, in seconds. Set to 0 to disable automatic sorting.')
 			.addText(text => text
 				.setValue('' + this.plugin.settings.intervalSeconds)
 				.onChange(async (value) => {
-					this.plugin.settings.intervalSeconds = Math.max(0, Math.min(999, parseInt(value) ));
+					const parsedValue = parseInt(value);
+					this.plugin.settings.intervalSeconds = Math.max(0, Math.min(999, isNaN(parsedValue) ? 0 : parsedValue));
 					await this.plugin.saveSettings();
+					this.plugin.scheduleReorderInterval();
 				}));
 	}
 }
