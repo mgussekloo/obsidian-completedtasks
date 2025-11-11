@@ -57,7 +57,8 @@ const DEFAULT_SETTINGS: CompletedTasksSettings = {
 
 // ---
 
-let shouldReorderCheckboxes = false;
+let shouldReorder = false;
+let reorderIntervalId: number | null = null;
 
 export default class CompletedTasksPlugin extends Plugin {
 	settings: CompletedTasksSettings;
@@ -77,14 +78,15 @@ export default class CompletedTasksPlugin extends Plugin {
 				if (activeLeaf) {
 					this.reorderLeaf(activeLeaf);
 				} else {
-					this.reorderCheckboxes();
+					shouldReorder = false;
+				  this.reorderActiveView();
 				}
 			}
 		});
 
 		// reorder if content in editor changes
 		this.registerEvent(this.app.vault.on('modify', (file) => {
-			shouldReorderCheckboxes = true;
+			shouldReorder = true;
 		}))
 
 		this.registerEvent(this.app.workspace.on('active-leaf-change', (leaf) => {
@@ -95,7 +97,7 @@ export default class CompletedTasksPlugin extends Plugin {
 				return;
 			}
 
-			if (!shouldReorderCheckboxes) {
+			if (!shouldReorder) {
 				return;
 			}
 
@@ -105,21 +107,33 @@ export default class CompletedTasksPlugin extends Plugin {
 		}));
 
 		// periodically check if we need to reorder
-		this.registerInterval(window.setInterval(() => {
-			if (shouldReorderCheckboxes) {
-				shouldReorderCheckboxes = false;
-
-				const activeLeaf = this.app.workspace.activeLeaf;
-				if (activeLeaf) {
-					this.reorderLeaf(activeLeaf);
-				}
-			}
-		}, this.settings.intervalSeconds * 1000));
+		this.scheduleReorderInterval();
 
 	}
 
 	onunload() {
 
+	}
+
+	scheduleReorderInterval() {
+		if (reorderIntervalId !== null) {
+			window.clearInterval(reorderIntervalId);
+			reorderIntervalId = null;
+		}
+
+		if (this.settings.intervalSeconds <= 0) {
+			return;
+		}
+
+		const intervalId = window.setInterval(() => {
+			if (shouldReorder) {
+				shouldReorder = false;
+				this.reorderActiveView();
+			}
+		}, this.settings.intervalSeconds * 1000);
+
+		reorderIntervalId = intervalId;
+		this.registerInterval(intervalId);
 	}
 
 	findSortval(line: string, arr: string[], _anywhere: boolean = false) {
@@ -140,7 +154,7 @@ export default class CompletedTasksPlugin extends Plugin {
 		return this.settings.statuses.some(value => line.startsWith(value));
 	}
 
-	private reorderLeaf(leaf: WorkspaceLeaf) {
+	reorderLeaf(leaf: WorkspaceLeaf) {
 		const view = leaf.view;
 		if (!(view instanceof MarkdownView)) {
 			return;
@@ -165,17 +179,29 @@ export default class CompletedTasksPlugin extends Plugin {
 				leaf.setViewState(viewState)
 			}, 10);
 		}
-	}
+	}	
 
-	reorderCheckboxes() {
-		const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+  reorderActiveView() {
+    const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
 		if (!activeView) return;
+    
+    this.reorderView(activeView);
+  }
+  
+	reorderView(view: MarkdownView) {	
+		const file = view.file;
+		if (file) {
+			const fileCache = this.app.metadataCache.getFileCache(file);
+			const frontmatterValue = fileCache?.frontmatter?.completedTasks;
 
-		this.reorderView(activeView);
-	}
+			if (typeof frontmatterValue === 'boolean' && frontmatterValue === false) {
+				return;
+			}
 
-	private reorderView(view: MarkdownView) {
-		shouldReorderCheckboxes = false;
+			if (typeof frontmatterValue === 'string' && frontmatterValue.trim().toLowerCase() === 'false') {
+				return;
+			}
+		}
 
 		const editor = view.editor as Editor;
 
@@ -309,7 +335,7 @@ export default class CompletedTasksPlugin extends Plugin {
 			editor.setSelection({ line: cursorIsAtLine, ch: cursorHead.ch });
 		}
 	}
-
+  
 	async loadSettings() {
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
 	}
@@ -374,12 +400,14 @@ class CompletedTasksSettingsTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Interval')
-			.setDesc('Interval at which the plugin runs, in seconds.')
+			.setDesc('Interval at which the plugin runs, in seconds. Set to 0 to disable automatic sorting.')
 			.addText(text => text
 				.setValue('' + this.plugin.settings.intervalSeconds)
 				.onChange(async (value) => {
-					this.plugin.settings.intervalSeconds = Math.max(0, Math.min(999, parseInt(value) ));
+					const parsedValue = parseInt(value);
+					this.plugin.settings.intervalSeconds = Math.max(0, Math.min(999, isNaN(parsedValue) ? 0 : parsedValue));
 					await this.plugin.saveSettings();
+					this.plugin.scheduleReorderInterval();
 				}));
 
 		new Setting(containerEl)
