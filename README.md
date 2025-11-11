@@ -10,6 +10,7 @@ A free, simple and intuitive [Obsidian](http://obsidian.md) plugin that automati
 - Compatible with the popular [Tasks](https://github.com/obsidian-tasks-group/obsidian-tasks) plugin but doesn't require it.
 - Reorders tasks at the root-level, while subtasks move with their parent.
 - Works in Reader mode.
+- Optional setting to reorder immediately whenever you switch tabs or focus.
 - Opt out per note with frontmatter (`completedTasks: false`).
 
 ## Usage
