@@ -160,6 +160,20 @@ export default class CompletedTasksPlugin extends Plugin {
 		const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
 		if (!activeView) return;
 
+		const file = activeView.file;
+		if (file) {
+			const fileCache = this.app.metadataCache.getFileCache(file);
+			const frontmatterValue = fileCache?.frontmatter?.completedTasks;
+
+			if (typeof frontmatterValue === 'boolean' && frontmatterValue === false) {
+				return;
+			}
+
+			if (typeof frontmatterValue === 'string' && frontmatterValue.trim().toLowerCase() === 'false') {
+				return;
+			}
+		}
+
 		const editor = activeView.editor as Editor;
 
 		// Store cursor position before modifications
