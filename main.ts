@@ -233,17 +233,17 @@ export default class CompletedTasksPlugin extends Plugin {
 			const nextLineHasChecklist = nextLine ? this.lineHasChecklist(nextLine.trim()) : false;
 			const isRootChecklist = this.lineHasChecklist(line);
 
-			if (!isRootChecklist && currentLineHasChecklist) {
+			const isSubChecklist = !isRootChecklist && currentLineHasChecklist && lastRootChecklistIndex >= 0;
+
+			if (isSubChecklist) {
 				// Line is a sub-checklist item, attach it to the last root checklist
-				if (lastRootChecklistIndex >= 0) {
-					lineCollector[lastRootChecklistIndex].sublines.push({
-						line,
-						sublines: [],
-						hasCursor,
-						statusSortval: 0,
-						subSortval: 0
-					});
-				}
+				lineCollector[lastRootChecklistIndex].sublines.push({
+					line,
+					sublines: [],
+					hasCursor,
+					statusSortval: 0,
+					subSortval: 0
+				});
 			} else {
 				// Store root checklist or non-checklist lines
 				lineCollector.push({
@@ -286,6 +286,28 @@ export default class CompletedTasksPlugin extends Plugin {
 			return
 		};
 
+		const sortChecklistLines = (lines: OCTLine[]): OCTLine[] => {
+			return lines
+				.map((line: OCTLine) => {
+					const trimmedLine = line.line.trimStart();
+					line.statusSortval = this.findSortval(trimmedLine, this.settings.sortedStatuses);
+					line.subSortval = this.settings.sortedSubstrings.length - this.findSortval(trimmedLine, this.settings.sortedSubstrings, true);
+					if (line.sublines.length) {
+						line.sublines = sortChecklistLines(line.sublines);
+					}
+					return line;
+				})
+				.sort((a: OCTLine, b: OCTLine) => {
+					if (a.statusSortval != b.statusSortval) {
+						return a.statusSortval > b.statusSortval ? 1 : -1;
+					}
+					if (a.subSortval != b.subSortval) {
+						return a.subSortval > b.subSortval ? 1 : -1;
+					}
+					return 0;
+				});
+		};
+
 		// Sort checklist blocks while keeping non-checklist blocks unchanged
 		const sortedLines = blocks
 		.map(block => {
@@ -293,21 +315,7 @@ export default class CompletedTasksPlugin extends Plugin {
 				return block.lines;
 			}
 
-			return block.lines
-			.map((line: OCTLine) => {
-				line.statusSortval = this.findSortval(line.line, this.settings.sortedStatuses);
-				line.subSortval = this.settings.sortedSubstrings.length - this.findSortval(line.line, this.settings.sortedSubstrings, true);
-				return line;
-			})
-			.sort((a: OCTLine, b: OCTLine) => {
-				if (a.statusSortval != b.statusSortval) {
-					return a.statusSortval > b.statusSortval ? 1 : -1;
-				}
-				if (a.subSortval != b.subSortval) {
-					return a.subSortval > b.subSortval ? 1 : -1;
-				}
-				return 0;
-			})
+			return sortChecklistLines(block.lines);
 		})
 		.flat();
 
