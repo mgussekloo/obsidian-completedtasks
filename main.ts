@@ -72,12 +72,16 @@ export default class CompletedTasksPlugin extends Plugin {
 			id: 'reorder-completed-tasks',
 			name: 'Reorder completed tasks',
 			callback: () => {
+				shouldReorder = false;
+
 				const activeLeaf = this.app.workspace.activeLeaf;
 				if (activeLeaf) {
-					this.reorderLeaf(activeLeaf);
+				  this.reorderLeaf(activeLeaf);
 				} else {
-					shouldReorder = false;
-				  this.reorderActiveView();
+					const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+					if (activeView) {
+    					this.reorderView(activeView);
+    				}
 				}
 			}
 		});
@@ -125,8 +129,13 @@ export default class CompletedTasksPlugin extends Plugin {
 
 		const intervalId = window.setInterval(() => {
 			if (shouldReorder) {
+
 				shouldReorder = false;
-				this.reorderActiveView();
+
+				const activeLeaf = this.app.workspace.activeLeaf;
+				if (activeLeaf) {
+					this.reorderLeaf(activeLeaf);
+				}
 			}
 		}, this.settings.intervalSeconds * 1000);
 
@@ -177,16 +186,9 @@ export default class CompletedTasksPlugin extends Plugin {
 				leaf.setViewState(viewState)
 			}, 10);
 		}
-	}	
+	}
 
-  reorderActiveView() {
-    const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
-		if (!activeView) return;
-    
-    this.reorderView(activeView);
-  }
-  
-	reorderView(view: MarkdownView) {	
+	reorderView(view: MarkdownView) {
 		const file = view.file;
 		if (file) {
 			const fileCache = this.app.metadataCache.getFileCache(file);
