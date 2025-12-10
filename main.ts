@@ -380,7 +380,7 @@ class CompletedTasksSettingsTab extends PluginSettingTab {
 		.addTextArea(text => text
 			.setValue(this.plugin.settings.sortedStatuses.join(','))
 			.onChange(async (value) => {
-				this.plugin.settings.sortedStatuses = value.split(',').map(item => item && item.trim());
+				this.plugin.settings.sortedStatuses = value.split(',');
 				await this.plugin.saveSettings();
 			}));
 
@@ -390,7 +390,7 @@ class CompletedTasksSettingsTab extends PluginSettingTab {
 			.addTextArea(text => text
 				.setValue(this.plugin.settings.sortedSubstrings.join(','))
 				.onChange(async (value) => {
-					this.plugin.settings.sortedSubstrings = value.split(',').map(item => item && item.trim());
+					this.plugin.settings.sortedSubstrings = value.split(',');
 					await this.plugin.saveSettings();
 				}));
 
